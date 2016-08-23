@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 
 use App\Http\Requests;
 use Session;
+use Stripe\Charge;
+use Stripe\Stripe;
 
 class ProductController extends Controller
 {
@@ -17,7 +19,8 @@ class ProductController extends Controller
         return view('shop.index', ['products' => $products]);
     }
 
-    public function getAddToCart(Request $request, $id) {
+    public function getAddToCart(Request $request, $id) 
+    {
         $product = Product::find($id);
         $oldCart = Session::has('cart') ? Session::get('cart') : null;
         $cart = new Cart($oldCart);
@@ -27,7 +30,8 @@ class ProductController extends Controller
         return redirect()->route('product.index');
     }
 
-    public function getCart() {
+    public function getCart() 
+    {
         if (!Session::has('cart')) {
             return view('shop.shopping-cart');
         }
@@ -36,7 +40,8 @@ class ProductController extends Controller
         return view('shop.shopping-cart', ['products' => $cart->items, 'totalPrice' => $cart->totalPrice]);
     }
 
-    public function getCheckout() {
+    public function getCheckout() 
+    {
         if (!Session::has('cart')) {
             return view('shop.shopping-cart');
         }
@@ -44,5 +49,29 @@ class ProductController extends Controller
         $cart = new Cart($oldCart);
         $total = $cart->totalPrice;
         return view('shop.checkout', ['total' => $total]);
+    }
+
+    public function postCheckout(Request $request) 
+    {
+        if (!Session::has('cart')) {
+                return redirect()->route('shop.shoppingCart');
+        }
+        $oldCart = Session::get('cart');
+        $cart = new Cart($oldCart);
+
+        Stripe::setApiKey('sk_test_rrvgFRRd9PoHrXG4KmrByJEi');
+        try {
+            Charge::create(array(
+                "amount" => $cart->totalPrice * 100,
+                "currency" => "usd",
+                "source" => $request->input('stripeToken'), //'tok_18lmj3A02ABAcQlMIdg30HrK',// obtained with Stripe.js
+                "description" => "Testing"
+            ));
+        } catch (\Exception $e) {
+            return redirect()->route('checkout')->with('error', $e->getMessage());
+        }
+
+        Session::forget('cart');
+        return redirect()->route('product.index')->with('success', 'Successfully purchased products!');
     }
 }
